@@ -1,90 +1,42 @@
-import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 from statsmodels.tsa.arima.model import ARIMA
-from statsmodels.tsa.stattools import adfuller
+from sklearn.metrics import mean_squared_error
 
-data = pd.read_csv("SPX.csv", parse_dates=["Date"], index_col="Date")
-##training_data = data.loc["2016":"2018", "Close"]
-training_data = data.loc["2010":"2015", "Close"]
-##training_data = data.loc["1990":"2005", "Close"]
-training_data = training_data.asfreq('B').ffill()
+# Load the data
+data = pd.read_csv("C:/Users/Joel Carrasco/OneDrive/PRML/SPX.csv")
 
-##actual_data= data.loc["2019":"2020", "Close"]
-actual_data= data.loc["2018":"2020", "Close"]
-##actual_data= data.loc["2015":"2020", "Close"]
+# Convert 'Date' column to datetime and set it as the index
+data['Date'] = pd.to_datetime(data['Date'], format='%Y-%m-%d')
+data.set_index('Date', inplace=True)
 
+# Select the 'Close' column (assuming you're predicting the 'Close' price)
+data = data[['Close']]
 
-'''
-def make_stationary(series, sig_level = 0.05):
-    difcount = 0
-    while True:
-        adf = adfuller(series)
-        p = adf[1]
+# Handle missing values by forward filling (or use a different imputation method)
+data.fillna(method='ffill', inplace=True)
 
-        if p < sig_level:
-            print(f"Data is stationary after {difcount} differencing steps.")
-            break
+# Define the training and testing periods
+train = data['2019-12-25':'2019-12-31']  # Last 90 days of 2019
+test = data['2020-01-01':'2020-01-04']  # First 60 days of 2020
 
-        else:
-            series = series.diff().dropna()
-            difcount += 1
-    return series
-
-training_data = make_stationary(training_data)
-'''
-
-p, d, q = 2, 2, 2 ##change these as needed 
-
-model = ARIMA(training_data, order=(p, d, q))
+# Fit the ARIMA model with p=3, d=0, q=2
+model = ARIMA(train, order=(3, 0, 2))
 model_fit = model.fit()
 
-print(model_fit.summary())
+# Make predictions for the test set
+predictions = model_fit.forecast(steps=len(test))
 
-forecast_steps = 3 * 252 ##change as needed, 252 = business days in 1 yr
-forecast = model_fit.forecast(steps=forecast_steps)
-forecast_dates = pd.date_range(start="2018-01-01", periods=forecast_steps, freq="B") ##also change based on starting date of predictions
-forecast_series = pd.Series(forecast, index=forecast_dates)
+# Calculate the Mean Squared Error (MSE)
+mse = mean_squared_error(test, predictions)
 
-mae = (forecast_series[:len(actual_data)] - actual_data).abs().mean()
-rmse = np.sqrt(((forecast_series[:len(actual_data)] - actual_data) ** 2).mean())
+# Output the MSE
+print(f'Mean Squared Error: {mse}')
 
-print(f"Mean Absolute Error (MAE): {mae}")
-print(f"Root Mean Squared Error (RMSE): {rmse}")
+# Plot the results (optional, turn off for now if you want no plots)
+import matplotlib.pyplot as plt
 
-print(forecast_series.head())
-print(forecast_series.tail())
-
-'''
-plt.figure(figsize=(12, 6))
-plt.plot(training_data, label="Training Data (2016-2018)")
-plt.plot(forecast_series, label="Forecast (2019-2020)", linestyle="--")
-plt.plot(actual_data, label="Actual Data (2019-2020)", linestyle="-", color="orange")
+plt.plot(test.index, test['Close'], label='True Values')
+plt.plot(test.index, predictions, label='Predicted Values')
+plt.title('ARIMA Model: Predictions vs True Values')
 plt.legend()
-plt.title("ARIMA Model - 1-Year Stock Price Forecast")
-plt.xlabel("Date")
-plt.ylabel("Price")
 plt.show()
-'''
-
-plt.figure(figsize=(12, 6))
-plt.plot(training_data, label="Training Data (2010-2015)")
-plt.plot(forecast_series, label="Forecast (2018-2020)", linestyle="--")
-plt.plot(actual_data, label="Actual Data (2018-2020)", linestyle="-", color="orange")
-plt.legend()
-plt.title("ARIMA Model - 3-Year Stock Price Forecast")
-plt.xlabel("Date")
-plt.ylabel("Price")
-plt.show()
-
-'''
-plt.figure(figsize=(12, 6))
-plt.plot(training_data, label="Training Data (1990-2015)")
-plt.plot(forecast_series, label="Forecast (2015-2020)", linestyle="--")
-plt.plot(actual_data, label="Actual Data (2015-2020)", linestyle="-", color="orange")
-plt.legend()
-plt.title("ARIMA Model - 3-Year Stock Price Forecast")
-plt.xlabel("Date")
-plt.ylabel("Price")
-plt.show()
-'''
